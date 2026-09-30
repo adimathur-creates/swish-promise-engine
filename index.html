@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swish Promise Engine</title>
+<meta name="description" content="Independent concept by Aditya Mathur: measuring and protecting Swish's 10-minute promise with an honest menu, honest ETA and automatic recovery, including a kitchen-peak simulator, switchback test design and SQL.">
+<style>
+:root{
+  --bg:#f7f7f5; --surface:#ffffff; --ink:#1a1d23; --muted:#5b6270; --line:#e3e4e8;
+  --accent:#c2410c; --accent-soft:#fdeee4; --good:#18794e; --good-soft:#e6f4ec;
+  --warn:#9a5b00; --warn-soft:#fbf1dd; --bad:#b42318; --bad-soft:#fdeceb;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --surface:#171a21; --ink:#e8eaee; --muted:#9aa1ad; --line:#2a2f3a;
+    --accent:#fb923c; --accent-soft:#2e1a0e; --good:#4cc38a; --good-soft:#12291e;
+    --warn:#e0a53c; --warn-soft:#2b2210; --bad:#f07167; --bad-soft:#2d1614;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a21; --ink:#e8eaee; --muted:#9aa1ad; --line:#2a2f3a;
+  --accent:#fb923c; --accent-soft:#2e1a0e; --good:#4cc38a; --good-soft:#12291e;
+  --warn:#e0a53c; --warn-soft:#2b2210; --bad:#f07167; --bad-soft:#2d1614;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;}
+.wrap{max-width:900px;margin:0 auto;padding:40px 16px 80px}
+.kicker{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+h1{font-size:clamp(28px,5vw,40px);line-height:1.15;margin:0 0 12px;letter-spacing:-.01em}
+h2{font-size:22px;margin:56px 0 12px;padding-top:8px;letter-spacing:-.005em}
+h3{font-size:17px;margin:28px 0 8px}
+p{margin:0 0 14px}
+a{color:var(--accent)}
+.lede{font-size:18px;color:var(--muted);margin-bottom:20px}
+.meta{font-size:14px;color:var(--muted);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin:20px 0 28px;display:flex;flex-wrap:wrap;gap:6px 18px}
+.note{font-size:13px;color:var(--muted);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+.tldr{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+.card .label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.card p{margin:0;font-size:15px}
+ul,ol{padding-left:22px;margin:0 0 14px}
+li{margin:4px 0}
+.tbl{width:100%;overflow-x:auto;margin:10px 0 18px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:none}
+.pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+.p-good{background:var(--good-soft);color:var(--good)} .p-warn{background:var(--warn-soft);color:var(--warn)} .p-bad{background:var(--bad-soft);color:var(--bad)} .p-acc{background:var(--accent-soft);color:var(--accent)}
+.flow{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+.step{display:grid;grid-template-columns:34px 1fr;gap:12px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.num{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font-weight:700;font-size:13px}
+.step p{margin:0;font-size:15px}
+.step .t{font-weight:600;margin-bottom:2px}
+pre{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;overflow-x:auto;font-size:13px;line-height:1.5;margin:8px 0 18px;white-space:pre}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+p code, li code, td code{background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:5px}
+.grader{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin:16px 0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+label{font-size:13px;color:var(--muted);display:block;margin-bottom:4px}
+select,textarea,input[type=file]{width:100%;font:inherit;font-size:14px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+textarea{min-height:130px;resize:vertical}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+button{font:inherit;font-size:14px;border:1px solid var(--accent);color:var(--accent);background:transparent;border-radius:999px;padding:6px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:#fff}
+:root[data-theme="dark"] button.primary{color:#0f1115}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) button.primary{color:#0f1115}}
+button:hover{opacity:.9}
+.case-box{font-size:14px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.case-box .msg{font-size:15px;margin-bottom:8px}
+.kv{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.checks{list-style:none;padding:0;margin:10px 0 0}
+.checks li{display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px}
+.checks li:last-child{border-bottom:none}
+.verdict{font-size:15px;font-weight:700;margin-top:10px}
+.why{background:var(--accent-soft);border-radius:12px;padding:18px 20px;margin-top:40px}
+.why h2{margin-top:0}
+footer{margin-top:48px;font-size:13px;color:var(--muted)}
+.small{font-size:13px;color:var(--muted)}
+details{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:10px 0}
+summary{cursor:pointer;font-weight:600}
+@media (max-width:760px){
+  .tldr{grid-template-columns:1fr}
+  .row2{grid-template-columns:1fr}
+}
+.ctrl-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px}
+.ctrl-grid label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+.ctrl-grid input[type=range]{width:100%;accent-color:var(--accent)}
+.ctrl-grid span{font-weight:600;color:var(--ink)}
+.chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--ink);margin:0 8px 0 0}
+@media (max-width:760px){.ctrl-grid{grid-template-columns:1fr}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+
+<p class="kicker">Independent product concept · Aditya Mathur · Oct 2026</p>
+<h1>The Promise Engine: keeping the 10-minute promise honest</h1>
+<p class="lede">Swish's brand is a promise: your food, from your neighbourhood kitchen, in ten minutes. This is a plan to measure that promise, stop it breaking after the customer has paid, and fix it automatically when it does. It includes a working kitchen-peak simulator to test the trade-offs.</p>
+
+<div class="meta">
+  <span>Built for: Associate Product Manager, Swish (Bengaluru)</span>
+  <span>Inside: evidence · one metric · root causes · 3-part solution · simulator · recovery policy · switchback test · SQL · rollout</span>
+  <span><a href="#sim">Jump to the simulator</a></span>
+</div>
+
+<p class="note">Independent work. Not affiliated with Swish, and no internal data was used. Company facts come from public reporting; the customer quotes are from public App Store and Google Play reviews read on 1 Oct 2026. Every number inside the simulator is an <strong>assumption you can change</strong>, not Swish data.</p>
+
+<div class="tldr">
+  <div class="card"><div class="label">The problem</div><p>Most customers love Swish (4.7 stars on 15.6k Play reviews). But the 1-star reviews are almost all one thing: a promise that broke <em>after</em> they paid. An item that ran out, an order cancelled an hour later, 10 minutes that became 90.</p></div>
+  <div class="card"><div class="label">Why now</div><p>Orders tripled since March to 1M+ a month, with new kitchens across Delhi NCR. Swiggy shut SNACC and Zing exited, citing the cost of this exact operation. New kitchens with no history are where promises break first.</p></div>
+  <div class="card"><div class="label">The idea</div><p>Only promise what the kitchen can keep, minute by minute: an honest menu, an honest ETA, and automatic recovery when something breaks. Measure it with one number: the Promise Kept Rate.</p></div>
+</div>
+
+<h2>1. What the public evidence says</h2>
+<h3>The business, from public reporting</h3>
+<ul>
+  <li>Founded 2024 by Aniket Shah (CEO), Ujjwal Sukheja and Saran S. Vertically integrated: own kitchens, sourcing, tech and riders, each kitchen serving about a 1 km radius.</li>
+  <li>1M+ orders a month (Sep 2026), tripled since March. 250+ SKUs across 20+ categories. Average prep under 4 minutes. About ₹200 to 250 per order (Mar 2026).</li>
+  <li>Bengaluru plus Gurugram, Noida, Delhi and Ghaziabad; about 50 pin codes. Plan for 1,000+ kitchens over five years. $78M raised in total.</li>
+  <li>Delivery: 10 minutes promised; <strong>80%+ of orders arrive within 15 minutes</strong>. Read the other way: up to 1 in 5 orders take longer than 15 minutes.</li>
+</ul>
+
+<h3>What customers say when it goes wrong</h3>
+<p>I read every public review visible on the App Store and Google Play pages: 9 reviews, 3 positive and 6 negative. That is far too small a sample to size anything, and I use it only to see <em>what kind</em> of failure people write about.</p>
+<div class="tbl"><table>
+<thead><tr><th>Stars</th><th>What happened (their words, shortened)</th><th>Broken promise</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>"About 10 minutes after placing my order, I got a call saying the kachori I ordered wasn't available."</td><td><span class="pill p-bad">Item gone after payment</span></td></tr>
+<tr><td>1</td><td>"They cancelled my order twice after accepting them... after 1 hour... money was deducted and I have not received refund"</td><td><span class="pill p-bad">Cancelled after acceptance</span> <span class="pill p-warn">Refund</span></td></tr>
+<tr><td>1</td><td>"The app couldn't track my location accurately... they cancelled my order without asking me first."</td><td><span class="pill p-bad">Cancelled after acceptance</span></td></tr>
+<tr><td>1</td><td>"Ordered over 1.5 hours ago. The kitchen is 10 mins from my home... slight drizzle"</td><td><span class="pill p-bad">ETA broken</span></td></tr>
+<tr><td>1</td><td>"I have placed around 15 orders, and not even once has this promise been met."</td><td><span class="pill p-bad">ETA broken</span></td></tr>
+<tr><td>1</td><td>"The roti was super super hard and very poor quality."</td><td><span class="pill p-acc">Food quality</span></td></tr>
+<tr><td>5</td><td>"They got my first order wrong. I raised the issue, and they were quick to resolve it by refunding the money."</td><td><span class="pill p-good">Recovered well</span></td></tr>
+</tbody></table></div>
+<p><strong>5 of the 6 negative reviews are about a promise broken after payment, not about the food.</strong> And the one positive review about a mistake is positive <em>because</em> the recovery was fast. The recovery matters as much as the failure.</p>
+
+<h2>2. Define it before fixing it</h2>
+<h3>Which promises break</h3>
+<div class="tbl"><table>
+<thead><tr><th>Break</th><th>What the customer sees</th><th>Detectable in real time?</th><th>In scope</th></tr></thead>
+<tbody>
+<tr><td><strong>Item gone after payment</strong></td><td>A call or a changed order after paying</td><td>Yes: stock at the kitchen</td><td><span class="pill p-good">Yes</span></td></tr>
+<tr><td><strong>Cancelled after acceptance</strong></td><td>Order cancelled, often late, sometimes without asking</td><td>Yes: kitchen, rider, location signals</td><td><span class="pill p-good">Yes</span></td></tr>
+<tr><td><strong>ETA broken</strong></td><td>"10 min" becomes 30, 60, 90</td><td>Yes: queue, riders, weather</td><td><span class="pill p-good">Yes</span></td></tr>
+<tr><td>Slow or missing refund</td><td>Money gone, no reference, no update</td><td>Yes: payment and refund status</td><td><span class="pill p-good">Yes (recovery)</span></td></tr>
+<tr><td>Wrong item, poor quality</td><td>Found on opening the bag</td><td>Only after delivery</td><td><span class="pill p-acc">Separate: kitchen QA</span></td></tr>
+</tbody></table></div>
+
+<h3>One number: Promise Kept Rate</h3>
+<p class="card" style="margin:10px 0 16px"><strong>Promise Kept Rate</strong> = orders delivered complete, with no change after payment, within the ETA shown at checkout plus 2 minutes, divided by all orders placed.</p>
+<ul>
+  <li><strong>Why not "% within 15 minutes":</strong> it hides the promise. An order shown as 10 minutes that arrives in 14 is a broken promise to the customer, even if it is inside 15.</li>
+  <li><strong>Guardrails:</strong> checkout conversion, orders per kitchen-hour, AOV, refund cost per order. The engine can make the promise rate look perfect by turning everyone away, so these have to move with it.</li>
+</ul>
+
+<h3>Why each break happens (hypotheses to check in week one)</h3>
+<div class="tbl"><table>
+<thead><tr><th>Break</th><th>Likely root cause</th><th>Signal I'd pull first</th></tr></thead>
+<tbody>
+<tr><td>Item gone after payment</td><td>The menu reads a stock count that lags reality, or counts batches not portions. The last portions sell twice.</td><td>Post-order unavailability by SKU, kitchen and time since last stock update</td></tr>
+<tr><td>Cancelled after acceptance</td><td>Location pin wrong or low confidence; kitchen overload; no rider. Cancelling is easier than asking.</td><td>Cancellations by reason code and minutes after acceptance</td></tr>
+<tr><td>ETA broken</td><td>A fixed "10 min" that ignores the live queue, free riders and rain</td><td>Promised vs actual by kitchen-hour; gap on rainy vs dry days</td></tr>
+<tr><td>Slow refund</td><td>Manual, ticket-led refunds; no reference shown</td><td>Time from break to refund credited, by reason</td></tr>
+</tbody></table></div>
+
+<h2>3. The Promise Engine: three parts</h2>
+<div class="flow">
+  <div class="step"><div class="num">1</div><div><p class="t">Honest menu</p><p>Live stock per kitchen, decremented when an order is placed, not when a cook counts. Hide an item when portions left fall below a <strong>safety buffer</strong> of about 3 minutes of its sales (buffer = sales per minute × 3), which covers carts still in checkout. Show "only a few left" before hiding. Offer the closest substitute in the same slot.</p></div></div>
+  <div class="step"><div class="num">2</div><div><p class="t">Honest ETA</p><p>Predict each order's time from the live prep queue, free riders and weather, and show it: "10 min" when it's true, "18 min" when it isn't. Never show a number the kitchen is unlikely to hit. In rain or a surge, an honest 20 minutes beats a false 10 that becomes 90.</p></div></div>
+  <div class="step"><div class="num">3</div><div><p class="t">Automatic recovery</p><p>When a promise breaks anyway, the system acts before the customer has to call: a one-tap swap or instant item refund, a proactive delay notice with a new ETA, a refund to source with a visible reference. No cancellation without the customer's consent, except for safety.</p></div></div>
+</div>
+
+<h3>Recovery policy (proposed, every amount to be tested)</h3>
+<div class="tbl"><table>
+<thead><tr><th>Break</th><th>Automatic action</th><th>What the customer sees</th></tr></thead>
+<tbody>
+<tr><td>Item gone, before prep starts</td><td>Hold the order; push a one-tap swap to the nearest equivalent at the same or lower price, or refund that item</td><td>A choice in the app within 60 seconds, not a phone call 10 minutes later</td></tr>
+<tr><td>Predicted delay beyond ETA + 5 min</td><td>Push a notice with the new ETA as soon as the model sees it</td><td>"Running 8 minutes late because of rain. New ETA 7:42."</td></tr>
+<tr><td>Actual delay beyond ETA + 10 min</td><td>Automatic credit on the next order (size to be tested)</td><td>"Sorry. ₹X is waiting on your next order." No ticket needed</td></tr>
+<tr><td>Location can't be reached</td><td>Rider calls, then an in-app pin confirmation, before any cancellation</td><td>A chance to fix the pin instead of a surprise cancellation</td></tr>
+<tr><td>Cancelled or double charged</td><td>Instant refund to source, matched against payment records</td><td>Refund reference shown, with the bank's usual timeline</td></tr>
+</tbody></table></div>
+
+<h2 id="sim">4. Simulator: one kitchen, one dinner peak</h2>
+<p>Two hours of a dinner peak at one kitchen, run twice on the same customers: once with today's style of promise (fixed "10 min", stock count refreshed every few minutes), once with the Promise Engine. Change the assumptions and see where each approach breaks.</p>
+<div class="grader">
+  <div class="ctrl-grid">
+    <label>Peak orders per hour <input type="range" id="p_peak" min="120" max="360" step="10"><span id="v_peak"></span></label>
+    <label>Riders on shift <input type="range" id="p_riders" min="30" max="70" step="1"><span id="v_riders"></span></label>
+    <label>Prep stations <input type="range" id="p_stations" min="10" max="30" step="1"><span id="v_stations"></span></label>
+    <label>Hero item portions at start <input type="range" id="p_stock" min="40" max="160" step="5"><span id="v_stock"></span></label>
+    <label>Stock count refreshed every (min), today <input type="range" id="p_sync" min="1" max="30" step="1"><span id="v_sync"></span></label>
+    <label>Orders lost per extra minute shown <input type="range" id="p_elast" min="0" max="0.08" step="0.005"><span id="v_elast"></span></label>
+  </div>
+  <div class="btns">
+    <label class="chk"><input type="checkbox" id="p_rain"> Rain (demand +25%, rides 60% slower)</label>
+    <button id="reseed">Run another evening</button>
+    <button id="reset">Reset defaults</button>
+  </div>
+  <div id="simOut"></div>
+</div>
+<details><summary>How the simulator works (and what it leaves out)</summary>
+<ul class="small">
+  <li>Orders arrive randomly, peaking mid-window. 30% include a "hero" item with limited portions. Prep takes 4 to 6 minutes per order at the first free station. Each order goes to the first free rider; rides are about 4 to 6 minutes each way, with 12% of drops taking 3 to 8 minutes longer (gated societies, stairs). Riders spend 2 minutes at handoff before returning.</li>
+  <li><strong>Today:</strong> every customer is promised 10 minutes. The menu hides the hero item only when a stock count, refreshed every N minutes, says zero, so portions can sell after they're gone.</li>
+  <li><strong>Promise Engine:</strong> live stock with a 3-minute buffer; the ETA shown comes from the live queue and riders. Customers shown a longer ETA leave at the rate you set.</li>
+  <li>A promise is kept if the order arrives within the shown ETA plus 2 minutes and nothing changed after payment. The simulator leaves out batching, pre-cooking, rider pay and quality.</li>
+</ul>
+</details>
+
+<h2>5. Proving it: a switchback test, not an A/B test</h2>
+<p>A normal user-level A/B test would give a biased answer here. Customers in both groups share the same kitchen and the same riders: if the engine turns some demand away, the control group gets faster deliveries too, and the difference looks smaller than it is.</p>
+<ul>
+  <li><strong>Unit:</strong> kitchen × 30-minute window. Each window at each kitchen is randomly set to engine on or off, balanced across lunch, dinner and weekdays.</li>
+  <li><strong>Washout:</strong> ignore the first 10 minutes after each switch, while queues from the previous window clear.</li>
+  <li><strong>Primary:</strong> Promise Kept Rate. <strong>Guardrails:</strong> orders per kitchen-hour, conversion, AOV, refund cost. <strong>Secondary:</strong> 14-day repeat rate of customers whose orders fell in each arm.</li>
+  <li><strong>Start</strong> with 6 to 10 mature Bengaluru kitchens for 2 weeks, then add new NCR kitchens, where there is the least history and the most to gain.</li>
+</ul>
+
+<h2>6. SQL I'd run every morning</h2>
+<details open><summary>1. Promise Kept Rate by kitchen and hour</summary>
+<pre>SELECT kitchen_id,
+       EXTRACT(HOUR FROM placed_at) AS hour,
+       COUNT(*)                     AS orders,
+       ROUND(100.0 * AVG(CASE
+         WHEN status = 'DELIVERED'
+          AND NOT changed_after_payment
+          AND delivered_at &lt;= placed_at + (promised_eta_min + 2) * INTERVAL '1 minute'
+         THEN 1 ELSE 0 END), 1)     AS promise_kept_pct
+FROM orders
+WHERE placed_at &gt;= CURRENT_DATE - 7
+GROUP BY kitchen_id, EXTRACT(HOUR FROM placed_at)
+ORDER BY promise_kept_pct;</pre></details>
+
+<details><summary>2. Which items run out after customers have paid</summary>
+<pre>SELECT oi.sku_id,
+       o.kitchen_id,
+       COUNT(*)                                                           AS times_ordered,
+       SUM(CASE WHEN oi.status = 'UNAVAILABLE_AFTER_PAYMENT' THEN 1 ELSE 0 END) AS gone_after_payment,
+       ROUND(100.0 * AVG(CASE WHEN oi.status = 'UNAVAILABLE_AFTER_PAYMENT' THEN 1 ELSE 0 END), 2) AS gone_pct
+FROM order_items oi
+JOIN orders o ON o.order_id = oi.order_id
+WHERE o.placed_at &gt;= CURRENT_DATE - 14
+GROUP BY oi.sku_id, o.kitchen_id
+HAVING SUM(CASE WHEN oi.status = 'UNAVAILABLE_AFTER_PAYMENT' THEN 1 ELSE 0 END) &gt; 0
+ORDER BY gone_after_payment DESC
+LIMIT 25;</pre></details>
+
+<details><summary>3. Is the ETA we show honest? (calibration)</summary>
+<pre>SELECT promised_eta_min,
+       COUNT(*)                                                    AS orders,
+       ROUND(100.0 * AVG(CASE WHEN delivered_at &lt;= placed_at + (promised_eta_min + 2) * INTERVAL '1 minute' THEN 1 ELSE 0 END), 1) AS on_time_pct,
+       PERCENTILE_CONT(0.9) WITHIN GROUP (
+         ORDER BY EXTRACT(EPOCH FROM (delivered_at - placed_at)) / 60) AS p90_actual_min
+FROM orders
+WHERE status = 'DELIVERED'
+  AND placed_at &gt;= CURRENT_DATE - 14
+GROUP BY promised_eta_min
+ORDER BY promised_eta_min;</pre></details>
+
+<details><summary>4. Does a broken promise cost repeat orders?</summary>
+<pre>-- Correlation only: broken orders cluster in bad kitchens and bad hours.
+-- The switchback test gives the causal answer.
+WITH first_orders AS (
+  SELECT DISTINCT ON (user_id) user_id, placed_at, promise_kept
+  FROM orders_enriched
+  WHERE placed_at &gt;= CURRENT_DATE - 60
+  ORDER BY user_id, placed_at
+)
+SELECT f.promise_kept,
+       COUNT(*) AS users,
+       ROUND(100.0 * AVG(CASE WHEN EXISTS (
+         SELECT 1 FROM orders o
+         WHERE o.user_id = f.user_id
+           AND o.placed_at &gt; f.placed_at
+           AND o.placed_at &lt;= f.placed_at + INTERVAL '14 days'
+       ) THEN 1 ELSE 0 END), 1) AS repeat_14d_pct
+FROM first_orders f
+WHERE f.placed_at &lt; CURRENT_DATE - 14   -- every user gets a full 14 days
+GROUP BY f.promise_kept;</pre></details>
+
+<details><summary>5. How fast do refunds actually reach customers?</summary>
+<pre>SELECT reason,
+       COUNT(*) AS refunds,
+       PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (initiated_at - break_detected_at)) / 60) AS p50_min_to_initiate,
+       PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (initiated_at - break_detected_at)) / 60) AS p90_min_to_initiate,
+       SUM(CASE WHEN initiated_at IS NULL THEN 1 ELSE 0 END) AS not_yet_initiated
+FROM refunds
+WHERE break_detected_at &gt;= CURRENT_DATE - 14
+GROUP BY reason
+ORDER BY p90_min_to_initiate DESC;</pre></details>
+
+<h2>7. Rollout, cheapest risk first</h2>
+<div class="flow">
+  <div class="step"><div class="num">1</div><div><p class="t">Week 1 to 2: measure</p><p>Log the ETA shown at checkout on every order, and a reason code on every post-payment change. Publish the Promise Kept Rate by kitchen daily. Nothing changes for customers yet.</p></div></div>
+  <div class="step"><div class="num">2</div><div><p class="t">Week 3 to 4: honest menu and recovery</p><p>Lowest conversion risk. Live stock with a buffer, one-tap swap, automatic refunds with references, no silent cancellations.</p></div></div>
+  <div class="step"><div class="num">3</div><div><p class="t">Week 5 to 8: honest ETA, behind a switchback test</p><p>Highest conversion risk, so it only ships at scale if the Promise Kept Rate rises without orders per kitchen-hour falling past the agreed limit.</p></div></div>
+  <div class="step"><div class="num">4</div><div><p class="t">New kitchens: start honest</p><p>New NCR kitchens have no history, so they borrow buffers and ETA curves from similar Bengaluru kitchens until their own data takes over.</p></div></div>
+</div>
+
+<h2>8. Risks I'd watch</h2>
+<ul>
+  <li><strong>"10 minutes" is the brand.</strong> Showing 18 might feel like giving up the promise. My answer: show 10 whenever it's true, and a true 18 on the few occasions it isn't, rather than a false 10 that becomes 90. The switchback test decides, not opinion.</li>
+  <li><strong>Hiding items lowers AOV.</strong> The buffer is a dial; tune it per SKU against post-payment unavailability.</li>
+  <li><strong>Gaming.</strong> Kitchens could mark items out early to protect their numbers. Track hide time against actual waste at close.</li>
+  <li><strong>Credits get expensive.</strong> Size the delay credit against repeat-rate impact from SQL query 4, not intuition.</li>
+</ul>
+
+<h2>9. What I'd ask in week one</h2>
+<ul>
+  <li>Is stock tracked per portion in real time, or per batch at intervals?</li>
+  <li>How is the ETA shown at checkout calculated today, and is it logged per order?</li>
+  <li>Of cancellations after acceptance, what share is kitchen, rider, location or payment?</li>
+  <li>Do refunds go to source or wallet, and who triggers them: system or support?</li>
+  <li>Has Swish ever shown a longer ETA? If yes, how much did conversion drop per minute?</li>
+</ul>
+
+<div class="why">
+  <h2>Why I built this</h2>
+  <p>I'm applying for the Associate Product Manager role at Swish. As Associate PM at EnKash I owned the payment side of this exact moment: checkout, transaction status webhooks, refunds, settlement and reconciliation. I shipped a checkout fix for an enterprise merchant whose UPI QR expired every 5 minutes and was losing customers at the point of paying. At Stripe I used SQL on large datasets to find the bottlenecks behind a 20% throughput uplift. A promise broken after payment is a checkout problem, an ops problem and a refund problem at once. That is the seam I've worked on.</p>
+  <p><strong>Aditya Mathur</strong> · Bengaluru · <a href="mailto:adityamathur2004@gmail.com">adityamathur2004@gmail.com</a> · <a href="https://www.linkedin.com/in/adityaamathur">LinkedIn</a> · <a href="https://adimathur-creates.github.io">Portfolio</a></p>
+</div>
+
+<footer>Sources, checked 1 Oct 2026: <a href="https://inc42.com/buzz/swish-raises-24-mn-to-expand-quick-food-delivery-network/">Inc42, Sep 2026</a> (1M+ monthly orders, 80%+ within 15 minutes, prep under 4 minutes, cities, 1,000+ kitchen plan, competitor exits); <a href="https://yourstory.com/2026/09/swish-raises-usd-24m-led-by-bertelsmann-india">YourStory, Sep 2026</a> (founders, 250+ SKUs); <a href="https://techcrunch.com/2026/03/23/bengaluru-food-startup-swish-raises-38m-in-its-third-round-in-18-months/">TechCrunch, Mar 2026</a> (1 km radius, ₹200 to 250 AOV); <a href="https://apps.apple.com/in/app/swish-10-min-food-delivery/id6504881715?see-all=reviews&amp;platform=iphone">App Store reviews</a>; <a href="https://play.google.com/store/apps/details?id=com.swishapp">Google Play</a> (4.7 stars, 15.6k reviews). The simulator, policy and SQL are my own work.</footer>
+</div>
+
+<script>
+// Kitchen dinner-peak simulator: static promise vs Promise Engine.
+// Shared by the page (browser) and node tests.
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function poisson(l, r){ const L=Math.exp(-l); let k=0,p=1; do{ k++; p*=r(); }while(p>L); return k-1; }
+
+function makeArrivals(P){
+  const r = mulberry32(P.seed);
+  const out = [];
+  const demandMult = P.rain ? 1.25 : 1;
+  for(let t=0;t<P.minutes;t++){
+    const lam = P.peakPerHour/60 * demandMult * (0.55 + 0.45*Math.sin(Math.PI*t/P.minutes));
+    const n = poisson(lam, r);
+    for(let i=0;i<n;i++) out.push({t: t + r(), hero: r() < P.heroShare, jitter: r()*2 + (r() < 0.12 ? 3 + r()*5 : 0), prepX: r()*2, u: r(), u2: r()});
+  }
+  return out.sort((a,b)=>a.t-b.t);
+}
+
+function run(P, arrivals, engine){
+  const travelMult = P.rain ? 1.6 : 1;
+  let stock = P.heroStock, synced = P.heroStock, lastSync = 0;
+  let kitchenFree = [];           // start times of prep slots: capacity per minute
+  for(let i=0;i<P.stations;i++) kitchenFree.push(0);
+  const riders = Array(P.riders).fill(0);
+  const heroRate = P.peakPerHour/60 * P.heroShare * (P.rain?1.25:1);
+  const buffer = Math.ceil(heroRate * 3);
+  const res = {arrived:arrivals.length, placed:0, lost:0, substituted:0, stockoutBreaks:0, late:0, kept:0, times:[], promised:[]};
+  for(const a of arrivals){
+    // static mode: stock count refreshed only every syncLag minutes
+    if(!engine && a.t - lastSync >= P.syncLag){ synced = stock; lastSync = Math.floor(a.t / P.syncLag) * P.syncLag; }
+    let hero = a.hero;
+    // --- predicted wait from current state (engine only uses it for the promise) ---
+    const stationFree = Math.min(...kitchenFree);
+    const startPred = Math.max(a.t, stationFree);
+    const readyPred = startPred + P.prepMin + 1;
+    const riderFree = Math.min(...riders);
+    const travelPred = (P.tripMin + 1) * travelMult;
+    const etaPred = Math.max(readyPred, riderFree) + travelPred - a.t;
+    let promised = 10;
+    if(!engine && hero && synced <= 0){             // static menu hides the item only once a stale count says zero
+      if(a.u < P.substituteRate){ hero = false; res.substituted++; }
+      else { res.lost++; continue; }
+    }
+    if(engine){
+      if(hero && stock <= buffer){
+        if(a.u < P.substituteRate){ hero = false; res.substituted++; }
+        else { res.lost++; continue; }
+      }
+      promised = Math.max(10, Math.ceil(etaPred));
+      const drop = Math.min(0.6, P.elasticity * (promised - 10));
+      if(a.u2 < drop){ res.lost++; continue; }
+    }
+    res.placed++;
+    let broke = false;
+    if(hero){
+      if(stock > 0){ stock--; }
+      else { broke = true; res.stockoutBreaks++; }   // sold after it ran out: call, cancel or swap after payment
+    }
+    // kitchen: pick earliest free station
+    let si = 0; for(let i=1;i<kitchenFree.length;i++) if(kitchenFree[i] < kitchenFree[si]) si = i;
+    const start = Math.max(a.t, kitchenFree[si]);
+    const prep = P.prepMin + a.prepX;       // 4 to 6 minutes
+    kitchenFree[si] = start + prep;          // one order per station at a time
+    const ready = start + prep;
+    let ri = 0; for(let i=1;i<riders.length;i++) if(riders[i] < riders[ri]) ri = i;
+    const pickup = Math.max(ready, riders[ri]);
+    const travel = (P.tripMin + a.jitter) * travelMult;
+    const delivered = pickup + travel;
+    riders[ri] = pickup + 2*travel + P.handoffMin;
+    const took = delivered - a.t;
+    res.times.push(took); res.promised.push(promised);
+    const late = took > promised + 2;
+    if(late) res.late++;
+    if(!late && !broke) res.kept++;
+  }
+  const s = [...res.times].sort((x,y)=>x-y);
+  res.avg = s.reduce((x,y)=>x+y,0)/Math.max(1,s.length);
+  res.p90 = s.length ? s[Math.floor(0.9*(s.length-1))] : 0;
+  res.within15 = s.filter(x=>x<=15).length / Math.max(1,s.length);
+  res.keptPct = res.kept / Math.max(1,res.placed);
+  res.buffer = buffer;
+  res.avgPromise = res.promised.reduce((x,y)=>x+y,0)/Math.max(1,res.promised.length);
+  return res;
+}
+
+const DEFAULTS = {seed: 7, minutes: 120, peakPerHour: 240, stations: 18, prepMin: 4, riders: 46, tripMin: 4, handoffMin: 2,
+  rain: false, heroShare: 0.3, heroStock: 90, syncLag: 15, substituteRate: 0.6, elasticity: 0.03};
+
+
+
+const $ = s => document.querySelector(s);
+const CTRL = [['peak','peakPerHour',v=>v+' / hr'],['riders','riders',v=>v],['stations','stations',v=>v],['stock','heroStock',v=>v],['sync','syncLag',v=>v+' min'],['elast','elasticity',v=>(v*100).toFixed(1)+'%']];
+let P = {...DEFAULTS};
+function bind(){
+  CTRL.forEach(([id,key,fmt])=>{ const el=$('#p_'+id); el.value=P[key]; $('#v_'+id).textContent=fmt(P[key]);
+    el.oninput=()=>{ P[key]=parseFloat(el.value); $('#v_'+id).textContent=fmt(P[key]); simulate(); }; });
+  $('#p_rain').checked=P.rain; $('#p_rain').onchange=()=>{ P.rain=$('#p_rain').checked; simulate(); };
+}
+const pct = x => (100*x).toFixed(0)+'%';
+function simulate(){
+  const A = makeArrivals(P); const s = run(P, A, false), e = run(P, A, true);
+  const broken = r => r.placed - r.kept;
+  const row = (label, a, b, better) => `<tr><td>${label}</td><td>${a}</td><td>${b}</td></tr>`;
+  let h = '<div class="tbl"><table><thead><tr><th>This evening ('+A.length+' customers arrive)</th><th>Today: fixed 10 min</th><th>Promise Engine</th></tr></thead><tbody>';
+  h += row('<strong>Promise Kept Rate</strong>', '<strong>'+pct(s.keptPct)+'</strong>', '<strong>'+pct(e.keptPct)+'</strong>');
+  h += row('Broken promises (orders)', broken(s), broken(e));
+  h += row('&nbsp;&nbsp;includes: item gone after payment', s.stockoutBreaks, e.stockoutBreaks);
+  h += row('&nbsp;&nbsp;includes: late past the promise + 2 min', s.late, e.late);
+  h += row('Orders placed', s.placed, e.placed);
+  h += row('Customers who left (longer ETA shown, or item hidden)', s.lost, e.lost);
+  h += row('Average ETA shown', s.avgPromise.toFixed(1)+' min', e.avgPromise.toFixed(1)+' min');
+  h += row('Average / p90 delivery', s.avg.toFixed(1)+' / '+s.p90.toFixed(0)+' min', e.avg.toFixed(1)+' / '+e.p90.toFixed(0)+' min');
+  h += row('Delivered within 15 min', pct(s.within15), pct(e.within15));
+  h += '</tbody></table></div>';
+  const lostPct = e.lost / A.length;
+  const notes = [];
+  notes.push(`Today's model breaks <strong>${broken(s)}</strong> promises this evening; the engine breaks <strong>${broken(e)}</strong>, and turns away <strong>${e.lost}</strong> customers (${pct(lostPct)}) by being honest up front.`);
+  if(s.within15 >= 0.8 && s.keptPct < 0.8) notes.push(`Note the gap: ${pct(s.within15)} of orders arrive within 15 minutes, yet only ${pct(s.keptPct)} arrive within the 10 minutes promised. "Within 15" hides the broken promise.`);
+  if(P.rain) notes.push(`In rain, riders become the bottleneck. A fixed "10 min" accepts everyone and delivers most orders far too late; the honest ETA shows about ${e.avgPromise.toFixed(0)} minutes and keeps it. The real fix here is more riders on rainy evenings, which the ETA data tells ops when to add.`);
+  if(s.stockoutBreaks > 0) notes.push(`${s.stockoutBreaks} hero orders sold after the portions ran out, because the stock count refreshes every ${P.syncLag} min. Live stock with a ${e.buffer}-portion buffer sells none.`);
+  if(lostPct > 0.15) notes.push(`Losing ${pct(lostPct)} of customers is too many to ship as is. This is where the switchback test earns its keep: it measures whether those customers come back more often later.`);
+  h += '<ul class="small">'+notes.map(n=>'<li>'+n+'</li>').join('')+'</ul>';
+  $('#simOut').innerHTML = h;
+}
+$('#reseed').onclick = ()=>{ P.seed = Math.floor(Math.random()*1e6); simulate(); };
+$('#reset').onclick = ()=>{ P = {...DEFAULTS}; bind(); simulate(); };
+bind(); simulate();
+
+</script>
+</body>
+</html>
