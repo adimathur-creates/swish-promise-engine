@@ -110,7 +110,7 @@ summary{cursor:pointer;font-weight:600}
 <p class="note">Independent work. Not affiliated with Swish, and no internal data was used. Company facts come from public reporting; the customer quotes are from public App Store and Google Play reviews read on 1 Oct 2026. Every number inside the simulator is an <strong>assumption you can change</strong>, not Swish data.</p>
 
 <div class="tldr">
-  <div class="card"><div class="label">The problem</div><p>Most customers love Swish (4.7 stars on 15.6k Play reviews). But the 1-star reviews are almost all one thing: a promise that broke <em>after</em> they paid. An item that ran out, an order cancelled an hour later, 10 minutes that became 90.</p></div>
+  <div class="card"><div class="label">The problem</div><p>Swish's own public number: 80%+ of orders arrive within 15 minutes, against a 10-minute promise. So up to 1 in 5 orders miss even 15 minutes, and more miss the 10 shown at checkout. At 1M+ orders a month, that is a lot of broken promises.</p></div>
   <div class="card"><div class="label">Why now</div><p>Orders tripled since March to 1M+ a month, with new kitchens across Delhi NCR. Swiggy shut SNACC and Zing exited, citing the cost of this exact operation. New kitchens with no history are where promises break first.</p></div>
   <div class="card"><div class="label">The idea</div><p>Only promise what the kitchen can keep, minute by minute: an honest menu, an honest ETA, and automatic recovery when something breaks. Measure it with one number: the Promise Kept Rate.</p></div>
 </div>
@@ -124,8 +124,8 @@ summary{cursor:pointer;font-weight:600}
   <li>Delivery: 10 minutes promised; <strong>80%+ of orders arrive within 15 minutes</strong>. Read the other way: up to 1 in 5 orders take longer than 15 minutes.</li>
 </ul>
 
-<h3>What customers say when it goes wrong</h3>
-<p>I read every public review visible on the App Store and Google Play pages: 9 reviews, 3 positive and 6 negative. That is far too small a sample to size anything, and I use it only to see <em>what kind</em> of failure people write about.</p>
+<h3>What customers say when it goes wrong (illustration, not evidence of size)</h3>
+<p>Swish's delivery number above sizes the problem. The reviews below only show <em>what kind</em> of failure customers notice. Only 9 reviews were visible on the App Store and Google Play pages (3 positive, 6 negative), far too few to measure anything, so I don't use them to size it. Most customers are happy: 4.7 stars on 15.6k Play reviews.</p>
 <div class="tbl"><table>
 <thead><tr><th>Stars</th><th>What happened (their words, shortened)</th><th>Broken promise</th></tr></thead>
 <tbody>
@@ -137,7 +137,7 @@ summary{cursor:pointer;font-weight:600}
 <tr><td>1</td><td>"The roti was super super hard and very poor quality."</td><td><span class="pill p-acc">Food quality</span></td></tr>
 <tr><td>5</td><td>"They got my first order wrong. I raised the issue, and they were quick to resolve it by refunding the money."</td><td><span class="pill p-good">Recovered well</span></td></tr>
 </tbody></table></div>
-<p><strong>5 of the 6 negative reviews are about a promise broken after payment, not about the food.</strong> And the one positive review about a mistake is positive <em>because</em> the recovery was fast. The recovery matters as much as the failure.</p>
+<p>In these few reviews, the complaints are about a promise broken after payment rather than the food, and the one positive review about a mistake is positive <em>because</em> the recovery was fast. That is a pattern to test with Swish's own order data (SQL query 2 and 3 below), not a finding.</p>
 
 <h2>2. Define it before fixing it</h2>
 <h3>Which promises break</h3>
